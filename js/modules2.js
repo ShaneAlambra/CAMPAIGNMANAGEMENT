@@ -206,37 +206,54 @@
     </div>`);
 
     const ak = el.querySelector("#an-kpi");
-    [
-      kpi({ label:"Total revenue", value:"$1.84M", icon:"bi-graph-up-arrow", trend:"+22%" }),
-      kpi({ label:"Marketing spend", value:"$248K", icon:"bi-cash-stack", trend:"+9%", trendDir:"up", iconBg:{bg:"#fef3e2",fg:"#ea580c"} }),
-      kpi({ label:"Blended ROAS", value:"3.4×", icon:"bi-bullseye", trend:"+0.3×", iconBg:{bg:"#f0eafb",fg:"#7c3aed"} }),
-      kpi({ label:"Conversion rate", value:"4.7%", icon:"bi-percent", trend:"+0.6pt", iconBg:{bg:"#e8f5ee",fg:"#16a34a"} }),
-    ].forEach(c => ak.appendChild(c));
+    // Compact money formatter ($1.84M / $248K).
+    const fmtMoney = n => { n=+n||0; const a=Math.abs(n);
+      if (a>=1e6) return "$"+(n/1e6).toFixed(2).replace(/\.?0+$/,"")+"M";
+      if (a>=1e3) return "$"+Math.round(n/1e3)+"K"; return "$"+Math.round(n); };
+    function renderKpis(k) {
+      ak.innerHTML = "";
+      [
+        kpi({ label:"Total revenue", value:fmtMoney(k.revenue), icon:"bi-graph-up-arrow" }),
+        kpi({ label:"Marketing spend", value:fmtMoney(k.spend), icon:"bi-cash-stack", iconBg:{bg:"#fef3e2",fg:"#ea580c"} }),
+        kpi({ label:"Blended ROAS", value:(k.roas||0)+"×", icon:"bi-bullseye", iconBg:{bg:"#f0eafb",fg:"#7c3aed"} }),
+        kpi({ label:"Conversion rate", value:(k.conversion||0)+"%", icon:"bi-percent", iconBg:{bg:"#e8f5ee",fg:"#16a34a"} }),
+      ].forEach(c => ak.appendChild(c));
+    }
+    renderKpis({ revenue:0, spend:0, roas:0, conversion:0 }); // placeholder until fetch
 
     el.querySelector("[data-xlsx]").addEventListener("click", () => UI.toast("Analytics report exported to Excel", "ok"));
     el.querySelector("[data-pdf]").addEventListener("click", () => UI.toast("Analytics report exported to PDF", "ok"));
 
     el._onMount = function () {
-      const months = ["Jan","Feb","Mar","Apr","May","Jun"];
-      chart(el.querySelector("#an-rev"), { type:"bar", data:{ labels:months, datasets:[
-        { label:"Revenue", data:[210,260,290,320,380,380].map(x=>x*1000), backgroundColor:accent(), borderRadius:5, order:2 },
-        { label:"Spend", data:[34,38,41,44,46,45].map(x=>x*1000), backgroundColor:"#cbd2dd", borderRadius:5, order:2 },
-      ]}, options: baseOpts({ scales:{ x:{grid:{display:false},ticks:{color:CH.color,font:CH.font}}, y:{grid:{color:CH.grid},ticks:{color:CH.color,font:CH.font,callback:v=>"$"+(v/1000)+"k"},border:{display:false}} } }) });
+      // Fetch live aggregates, then draw every chart from real data.
+      API.analytics.get().then(a => {
+        renderKpis(a.kpis || {});
 
-      chart(el.querySelector("#an-funnel"), { type:"bar", indexAxis:"y",
-        data:{ labels:["Impressions","Clicks","Leads","Qualified","Customers"], datasets:[{ data:[100,42,18,9,4.7], backgroundColor:["#c7cdd9", accent(), "#0ea5e9","#f59e0b","#16a34a"], borderRadius:5 }] },
-        options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{grid:{color:CH.grid},ticks:{color:CH.color,font:CH.font,callback:v=>v+"%"},border:{display:false}}, y:{grid:{display:false},ticks:{color:CH.color,font:CH.font}} } } });
+        // Revenue & spend (monthly)
+        const m = a.monthly || { labels:[], revenue:[], spend:[] };
+        chart(el.querySelector("#an-rev"), { type:"bar", data:{ labels:m.labels, datasets:[
+          { label:"Revenue", data:m.revenue, backgroundColor:accent(), borderRadius:5 },
+          { label:"Spend", data:m.spend, backgroundColor:"#cbd2dd", borderRadius:5 },
+        ]}, options: baseOpts({ scales:{ x:{grid:{display:false},ticks:{color:CH.color,font:CH.font}}, y:{grid:{color:CH.grid},ticks:{color:CH.color,font:CH.font,callback:v=>"$"+(v>=1000?(v/1000)+"k":v)},border:{display:false}} } }) });
 
-      chart(el.querySelector("#an-roi"), { type:"bar",
-        data:{ labels:["Email","PPC","Social","Display","Event"], datasets:[{ data:[5.6,3.8,2.1,1.4,2.2], backgroundColor:palette(), borderRadius:6, barThickness:34 }] },
-        options: baseOpts({ scales:{ x:{grid:{display:false},ticks:{color:CH.color,font:CH.font}}, y:{grid:{color:CH.grid},ticks:{color:CH.color,font:CH.font,callback:v=>v+"×"},border:{display:false}} } }) });
+        // Conversion funnel
+        const fn = a.funnel || [];
+        chart(el.querySelector("#an-funnel"), { type:"bar", indexAxis:"y",
+          data:{ labels:fn.map(f=>f.stage), datasets:[{ data:fn.map(f=>f.value), backgroundColor:["#c7cdd9", accent(), "#0ea5e9","#f59e0b","#16a34a"], borderRadius:5 }] },
+          options:{ indexAxis:"y", responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{ x:{grid:{color:CH.grid},ticks:{color:CH.color,font:CH.font,callback:v=>v+"%"},border:{display:false}}, y:{grid:{display:false},ticks:{color:CH.color,font:CH.font}} } } });
 
-      chart(el.querySelector("#an-src"), { type:"line",
-        data:{ labels:["Jan","Feb","Mar","Apr","May","Jun"], datasets:[
-          { label:"Email", data:[180,220,260,300,360,340], borderColor:accent(), tension:.38, borderWidth:2.5, pointRadius:0 },
-          { label:"PPC", data:[120,140,160,190,240,260], borderColor:"#0ea5e9", tension:.38, borderWidth:2.5, pointRadius:0 },
-          { label:"Social", data:[80,90,110,130,150,170], borderColor:"#f59e0b", tension:.38, borderWidth:2.5, pointRadius:0 },
-        ]}, options: baseOpts({ plugins:{legend:{display:true,position:"top",labels:{boxWidth:10,boxHeight:10,font:CH.font,color:CH.color}}} }) });
+        // ROI by channel
+        const roi = a.roiByChannel || [];
+        chart(el.querySelector("#an-roi"), { type:"bar",
+          data:{ labels:roi.map(r=>r.channel), datasets:[{ data:roi.map(r=>r.roi), backgroundColor:palette(), borderRadius:6, barThickness:34 }] },
+          options: baseOpts({ scales:{ x:{grid:{display:false},ticks:{color:CH.color,font:CH.font}}, y:{grid:{color:CH.grid},ticks:{color:CH.color,font:CH.font,callback:v=>v+"×"},border:{display:false}} } }) });
+
+        // Leads by source (value per source)
+        const src = a.leadsBySource || [];
+        chart(el.querySelector("#an-src"), { type:"bar",
+          data:{ labels:src.map(s=>s.source), datasets:[{ label:"Pipeline value", data:src.map(s=>s.value), backgroundColor:palette(), borderRadius:6, barThickness:34 }] },
+          options: baseOpts({ scales:{ x:{grid:{display:false},ticks:{color:CH.color,font:CH.font}}, y:{grid:{color:CH.grid},ticks:{color:CH.color,font:CH.font,callback:v=>"$"+(v>=1000?(v/1000)+"k":v)},border:{display:false}} } }) });
+      }).catch(err => UI.toast(err.message || "Could not load analytics", "del"));
     };
     return el;
   };
@@ -288,9 +305,38 @@
     });
     el.querySelector("#users-table").appendChild(table);
 
-    const rm = DB.roleMatrix;
-    el.querySelector("#matrix").innerHTML = `<thead><tr><th>Permission area</th>${rm.roles.map(r=>`<th class="no-sort">${r}</th>`).join("")}</tr></thead>
-      <tbody>${rm.perms.map(p=>`<tr><td class="cell-strong">${p.area}</td>${p.vals.map(v=>`<td>${v?`<i class="bi bi-check-lg ck"></i>`:`<i class="bi bi-dash xk"></i>`}</td>`).join("")}</tr>`).join("")}</tbody>`;
+    // Editable permission matrix. Cells are clickable toggles for Admins;
+    // read-only (no pointer) for everyone else.
+    const isAdmin = (window.API && API.auth.user && API.auth.user.role === "Admin");
+    const matrixEl = el.querySelector("#matrix");
+
+    function renderMatrix() {
+      const rm = DB.roleMatrix;
+      matrixEl.innerHTML = `<thead><tr><th>Permission area</th>${rm.roles.map(r=>`<th class="no-sort">${r}</th>`).join("")}</tr></thead>
+        <tbody>${rm.perms.map((p, pi)=>`<tr><td class="cell-strong">${esc(p.area)}</td>${p.vals.map((v, ri)=>
+          `<td ${isAdmin?`data-area="${esc(p.area)}" data-role="${rm.roles[ri]}" data-pi="${pi}" data-ri="${ri}" style="cursor:pointer" title="Click to toggle"`:""}>${v?`<i class="bi bi-check-lg ck"></i>`:`<i class="bi bi-dash xk"></i>`}</td>`
+        ).join("")}</tr>`).join("")}</tbody>`;
+
+      if (!isAdmin) return;
+      matrixEl.querySelectorAll("td[data-area]").forEach(td => {
+        td.addEventListener("click", async () => {
+          const { area, role, pi, ri } = td.dataset;
+          const perm = DB.roleMatrix.perms[+pi];
+          const next = !perm.vals[+ri];
+          // Optimistic UI update, then persist.
+          perm.vals[+ri] = next; renderMatrix();
+          try {
+            const updated = await API.users.setPermission(area, role, next);
+            if (updated && updated.perms) { Object.assign(DB.roleMatrix, updated); renderMatrix(); }
+            UI.toast(`${area} · ${role} ${next ? "enabled" : "disabled"}`, "ok");
+          } catch (err) {
+            perm.vals[+ri] = !next; renderMatrix(); // revert
+            UI.toast(err.message || "Could not update permission", "del");
+          }
+        });
+      });
+    }
+    renderMatrix();
     return el;
   };
 
@@ -411,20 +457,75 @@
       <div class="seg-tabs" style="margin-bottom:16px"><button data-s="profile" class="active">Profile</button><button data-s="workspace">Workspace</button><button data-s="security">Security</button></div>
       <div id="set-body"></div></div>`);
     const body = el.querySelector("#set-body");
-    const panes = {
-      profile: card("Profile", `<div class="d-flex align-items-center gap-3 mb-4">${avatar("Maya Chen","")} <div><div class="cell-strong" style="font-size:15px">Maya Chen</div><div class="cell-sub">Admin · Growth team</div></div><button class="btn btn-sm btn-light ms-auto">Change photo</button></div>
-        <div class="form-grid-2">${UI.field("Full name",UI.input("n","Maya Chen"),true)}${UI.field("Email",UI.input("e","maya.chen@acme.com","email"),true)}</div>
-        <div class="form-grid-2">${UI.field("Job title",UI.input("t","Director of Growth"),true)}${UI.field("Timezone",UI.select("tz",["PT","ET","GMT","CET"],"PT"),true)}</div>`),
-      workspace: card("Workspace", `<div class="form-grid-2">${UI.field("Workspace name",UI.input("w","Acme Marketing"),true)}${UI.field("Default currency",UI.select("c",["USD — US Dollar ($)","EUR — Euro (€)","GBP — British Pound (£)","PHP — Philippine Peso (₱)","JPY — Japanese Yen (¥)","AUD — Australian Dollar (A$)","CAD — Canadian Dollar (C$)","SGD — Singapore Dollar (S$)","INR — Indian Rupee (₹)","AED — UAE Dirham (د.إ)"],"USD — US Dollar ($)"),true)}</div>
-        ${UI.field("Fiscal year start",UI.select("fy",["January","April","July","October"],"January"))}
-        <label class="d-flex align-items-center gap-2 mt-2" style="font-size:13px"><input type="checkbox" checked> Require approval for budgets over $10,000</label>`),
-      security: card("Security", `<label class="d-flex align-items-center justify-content-between py-2" style="font-size:13px;border-bottom:1px solid var(--card-bd)"><span><b>Two-factor authentication</b><br><span class="cell-sub">Require 2FA for all admins</span></span><input type="checkbox" checked></label>
-        <label class="d-flex align-items-center justify-content-between py-2" style="font-size:13px;border-bottom:1px solid var(--card-bd)"><span><b>Single sign-on (SSO)</b><br><span class="cell-sub">SAML via Okta</span></span><input type="checkbox" checked></label>
-        <label class="d-flex align-items-center justify-content-between py-2" style="font-size:13px"><span><b>Session timeout</b><br><span class="cell-sub">Auto log-out after inactivity</span></span><select class="form-select form-select-sm" style="width:auto"><option>30 min</option><option>1 hr</option><option>4 hr</option></select></label>`),
+
+    // Local copy of settings loaded from the API. Falls back to defaults.
+    let S = {
+      profile_name: "Maya Chen", profile_email: "maya.chen@acme.com",
+      profile_title: "Director of Growth", profile_timezone: "PT",
+      workspace_name: "Acme Marketing", workspace_currency: "USD — US Dollar ($)",
+      workspace_fiscal_start: "January", workspace_require_approval: "1",
+      security_2fa: "1", security_sso: "1", security_session_timeout: "30 min",
     };
-    function show(k){ body.innerHTML = panes[k]; body.appendChild(h(`<div class="d-flex justify-content-end gap-2 mt-3"><button class="btn btn-light btn-sm">Cancel</button><button class="btn btn-accent btn-sm" data-save><i class="bi bi-check-lg"></i> Save changes</button></div>`)); body.querySelector("[data-save]").addEventListener("click",()=>UI.toast("Settings saved","ok")); }
+    const on = v => v === "1" || v === 1 || v === true ? "checked" : "";
+    const currencies = ["USD — US Dollar ($)","EUR — Euro (€)","GBP — British Pound (£)","PHP — Philippine Peso (₱)","JPY — Japanese Yen (¥)","AUD — Australian Dollar (A$)","CAD — Canadian Dollar (C$)","SGD — Singapore Dollar (S$)","INR — Indian Rupee (₹)","AED — UAE Dirham (د.إ)"];
+
+    // Which setting keys each tab owns (so Save only writes the active tab).
+    const tabKeys = {
+      profile:   ["profile_name","profile_email","profile_title","profile_timezone"],
+      workspace: ["workspace_name","workspace_currency","workspace_fiscal_start","workspace_require_approval"],
+      security:  ["security_2fa","security_sso","security_session_timeout"],
+    };
+
+    const panes = () => ({
+      profile: card("Profile", `<div class="d-flex align-items-center gap-3 mb-4">${avatar(S.profile_name,"")} <div><div class="cell-strong" style="font-size:15px">${esc(S.profile_name)}</div><div class="cell-sub">${esc((API.auth.user&&API.auth.user.role)||"Admin")} · ${esc((API.auth.user&&API.auth.user.team)||"Growth")} team</div></div></div>
+        <div class="form-grid-2">${UI.field("Full name",UI.input("profile_name",S.profile_name),true)}${UI.field("Email",UI.input("profile_email",S.profile_email,"email"),true)}</div>
+        <div class="form-grid-2">${UI.field("Job title",UI.input("profile_title",S.profile_title),true)}${UI.field("Timezone",UI.select("profile_timezone",["PT","ET","GMT","CET"],S.profile_timezone),true)}</div>`),
+      workspace: card("Workspace", `<div class="form-grid-2">${UI.field("Workspace name",UI.input("workspace_name",S.workspace_name),true)}${UI.field("Default currency",UI.select("workspace_currency",currencies,S.workspace_currency),true)}</div>
+        ${UI.field("Fiscal year start",UI.select("workspace_fiscal_start",["January","April","July","October"],S.workspace_fiscal_start))}
+        <label class="d-flex align-items-center gap-2 mt-2" style="font-size:13px"><input type="checkbox" name="workspace_require_approval" ${on(S.workspace_require_approval)}> Require approval for budgets over $10,000</label>`),
+      security: card("Security", `<label class="d-flex align-items-center justify-content-between py-2" style="font-size:13px;border-bottom:1px solid var(--card-bd)"><span><b>Two-factor authentication</b><br><span class="cell-sub">Require 2FA for all admins</span></span><input type="checkbox" name="security_2fa" ${on(S.security_2fa)}></label>
+        <label class="d-flex align-items-center justify-content-between py-2" style="font-size:13px;border-bottom:1px solid var(--card-bd)"><span><b>Single sign-on (SSO)</b><br><span class="cell-sub">SAML via Okta</span></span><input type="checkbox" name="security_sso" ${on(S.security_sso)}></label>
+        <label class="d-flex align-items-center justify-content-between py-2" style="font-size:13px"><span><b>Session timeout</b><br><span class="cell-sub">Auto log-out after inactivity</span></span>${UI.select("security_session_timeout",["30 min","1 hr","4 hr"],S.security_session_timeout)}</label>`),
+    });
+
+    let activeTab = "profile";
+    function show(k) {
+      activeTab = k;
+      body.innerHTML = panes()[k];
+      body.appendChild(h(`<div class="d-flex justify-content-end gap-2 mt-3"><button class="btn btn-light btn-sm" data-cancel>Cancel</button><button class="btn btn-accent btn-sm" data-save><i class="bi bi-check-lg"></i> Save changes</button></div>`));
+      body.querySelector("[data-cancel]").addEventListener("click", () => show(activeTab));
+      body.querySelector("[data-save]").addEventListener("click", saveTab);
+    }
+
+    async function saveTab() {
+      const payload = {};
+      tabKeys[activeTab].forEach(key => {
+        const node = body.querySelector(`[name="${key}"]`);
+        if (!node) return;
+        payload[key] = node.type === "checkbox" ? (node.checked ? "1" : "0") : node.value;
+      });
+      const btn = body.querySelector("[data-save]");
+      const orig = btn.innerHTML; btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Saving…'; btn.style.pointerEvents = "none";
+      try {
+        const fresh = await API.settings.save(payload);
+        if (fresh) S = Object.assign(S, fresh);
+        UI.toast("Settings saved", "ok");
+      } catch (err) {
+        UI.toast(err.message || "Could not save settings", "del");
+      } finally {
+        btn.innerHTML = orig; btn.style.pointerEvents = "auto";
+      }
+    }
+
     el.querySelectorAll("[data-s]").forEach(b => b.addEventListener("click", () => { el.querySelectorAll("[data-s]").forEach(x=>x.classList.toggle("active",x===b)); show(b.dataset.s); }));
-    show("profile");
+
+    // Load persisted settings, then render.
+    el._onMount = function () {
+      show("profile"); // render immediately with defaults
+      API.settings.get()
+        .then(data => { if (data && typeof data === "object") { S = Object.assign(S, data); show(activeTab); } })
+        .catch(() => {/* keep defaults */});
+    };
     return el;
   };
 })();

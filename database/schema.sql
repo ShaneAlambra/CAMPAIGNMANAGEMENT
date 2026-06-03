@@ -10,6 +10,7 @@ USE cadence;
 
 -- Drop in FK-safe order (so the script is re-runnable) ----------
 SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS settings;
 DROP TABLE IF EXISTS password_resets;
 DROP TABLE IF EXISTS audit_logs;
 DROP TABLE IF EXISTS notifications;
@@ -202,6 +203,15 @@ CREATE TABLE password_resets (
   INDEX idx_token (token)
 ) ENGINE=InnoDB;
 
+-- ============================================================
+--  SETTINGS  (simple key/value store for workspace + profile)
+-- ============================================================
+CREATE TABLE settings (
+  k          VARCHAR(80) PRIMARY KEY,
+  v          TEXT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+
 
 -- ============================================================
 --  SEED DATA
@@ -353,3 +363,17 @@ INSERT INTO role_permissions (area, admin_allow, manager_allow, editor_allow, vi
 ('User Management',1,0,0,0),
 ('Audit Logs',1,0,0,0),
 ('Billing & Settings',1,0,0,0);
+
+-- Settings (key/value) ----------------------------------------
+INSERT INTO settings (k, v) VALUES
+('profile_name','Maya Chen'),
+('profile_email','maya.chen@acme.com'),
+('profile_title','Director of Growth'),
+('profile_timezone','PT'),
+('workspace_name','Acme Marketing'),
+('workspace_currency','USD — US Dollar ($)'),
+('workspace_fiscal_start','January'),
+('workspace_require_approval','1'),
+('security_2fa','1'),
+('security_sso','1'),
+('security_session_timeout','30 min');

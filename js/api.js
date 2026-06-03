@@ -120,7 +120,19 @@
       create: (data)   => request("POST", "/users", data),
       update: (id, d)  => request("PUT", "/users/" + id, d),
       remove: (id)     => request("DELETE", "/users/" + id),
+      // Role permission matrix:
+      getPermissions: ()                  => request("GET", "/users/permissions"),
+      setPermission:  (area, role, allow) => request("PUT", "/users/permissions", { area, role, allow }),
     },
+
+    // Settings (key/value).
+    settings: {
+      get:  ()     => request("GET", "/settings"),         // -> { key: value, ... }
+      save: (data) => request("PUT", "/settings", data),   // upsert subset
+    },
+
+    // Analytics aggregates (read-only).
+    analytics: { get: () => request("GET", "/analytics") },
   };
 
   // Wire up the simple CRUD resources via the factory.

@@ -4,25 +4,40 @@
 (function () {
   const { h, esc } = UI;
 
+  // Each item lists the roles allowed to SEE it. Omit `roles` = everyone.
+  // This mirrors the backend permission matrix so the UI matches what the
+  // API will actually allow (backend still enforces independently).
   const NAV = [
     { section: "Main" },
     { key: "dashboard", label: "Dashboard", icon: "bi-grid-1x2-fill" },
-    { key: "campaigns", label: "Campaign Planning", icon: "bi-megaphone-fill" },
-    { key: "leads", label: "Lead Management", icon: "bi-funnel-fill" },
-    { key: "crm", label: "CRM", icon: "bi-person-rolodex" },
+    { key: "campaigns", label: "Campaign Planning", icon: "bi-megaphone-fill", roles: ["Admin","Manager","Editor"] },
+    { key: "leads", label: "Lead Management", icon: "bi-funnel-fill", roles: ["Admin","Manager","Editor"] },
+    { key: "crm", label: "CRM", icon: "bi-person-rolodex", roles: ["Admin","Manager","Editor"] },
     { section: "Operations" },
-    { key: "budget", label: "Budget Tracking", icon: "bi-cash-stack" },
-    { key: "tasks", label: "Task Management", icon: "bi-kanban-fill" },
+    { key: "budget", label: "Budget Tracking", icon: "bi-cash-stack", roles: ["Admin","Manager"] },
+    { key: "tasks", label: "Task Management", icon: "bi-kanban-fill", roles: ["Admin","Manager","Editor"] },
     { key: "calendar", label: "Calendar", icon: "bi-calendar3" },
-    { key: "approvals", label: "Approvals", icon: "bi-check2-square", badge: "approvals" },
+    { key: "approvals", label: "Approvals", icon: "bi-check2-square", badge: "approvals", roles: ["Admin","Manager"] },
     { section: "Insights" },
     { key: "analytics", label: "Analytics & Reports", icon: "bi-bar-chart-line-fill" },
-    { key: "audit", label: "Audit Logs", icon: "bi-clock-history" },
+    { key: "audit", label: "Audit Logs", icon: "bi-clock-history", roles: ["Admin"] },
     { section: "Administration" },
-    { key: "roles", label: "Roles & Permissions", icon: "bi-shield-lock-fill" },
+    { key: "roles", label: "Roles & Permissions", icon: "bi-shield-lock-fill", roles: ["Admin"] },
     { key: "notifications", label: "Notifications", icon: "bi-bell-fill", badge: "notifications" },
-    { key: "settings", label: "Settings", icon: "bi-gear-fill" },
+    { key: "settings", label: "Settings", icon: "bi-gear-fill", roles: ["Admin","Manager"] },
   ];
+
+  /** Current user's role (from the JWT-backed user in localStorage). */
+  function currentRole() {
+    return (window.API && API.auth.user && API.auth.user.role) || "Viewer";
+  }
+  /** Can the current role access this nav key? */
+  function canAccess(key) {
+    const item = NAV.find(i => i.key === key);
+    if (!item || !item.roles) return true;       // public item
+    return item.roles.includes(currentRole());
+  }
+  window.canAccess = canAccess;
 
   function badgeCount(kind) {
     if (kind === "notifications") return DB.notifications.filter(n => n.unread).length;
@@ -32,7 +47,21 @@
 
   function buildSidebar() {
     const nav = document.querySelector(".nav-scroll");
-    nav.innerHTML = NAV.map(item => {
+
+    // Hide items the current role can't access, then drop any section header
+    // left with no visible items under it.
+    const visible = NAV.filter(item => item.section || canAccess(item.key));
+    const pruned = visible.filter((item, i) => {
+      if (!item.section) return true;
+      // keep the section only if a non-section item follows before the next section
+      for (let j = i + 1; j < visible.length; j++) {
+        if (visible[j].section) break;
+        return true;
+      }
+      return false;
+    });
+
+    nav.innerHTML = pruned.map(item => {
       if (item.section) return `<div class="sidebar-section">${item.section}</div>`;
       const bc = item.badge ? badgeCount(item.badge) : 0;
       return `<div class="nav-item" data-key="${item.key}"><i class="bi ${item.icon}"></i><span>${item.label}</span>${bc ? `<span class="nav-badge" data-badge="${item.badge}">${bc}</span>` : ""}</div>`;
@@ -63,6 +92,12 @@
   let current = null;
   window.navTo = function (key) {
     if (!MODULES[key]) key = "dashboard";
+    // Block navigation to a module the current role can't access (e.g. via
+    // a typed #hash or a stale link). Backend still enforces too.
+    if (!canAccess(key)) {
+      UI.toast?.("You don't have access to that section", "del");
+      key = "dashboard";
+    }
     current = key;
     if (MODULES.clearCharts) MODULES.clearCharts();
     document.querySelectorAll(".nav-item").forEach(n => n.classList.toggle("active", n.dataset.key === key));

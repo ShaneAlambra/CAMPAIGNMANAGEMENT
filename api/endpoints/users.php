@@ -12,6 +12,49 @@
 require_once dirname(__DIR__) . '/core/bootstrap.php';
 $claims = require_auth();
 $id = $id ?? null;
+$segment = $segment ?? null;   // e.g. "permissions"
+
+/**
+ * Sub-route: /users/permissions  — manage the role permission matrix.
+ *   GET -> { roles, perms }
+ *   PUT -> body { area, role: 'Admin'|'Manager'|'Editor'|'Viewer', allow: true|false }
+ *          (toggle a single cell)  -> returns the updated matrix
+ */
+if ($segment === 'permissions') {
+    if (method() === 'GET') {
+        respond(role_matrix());
+    }
+    if (method() === 'PUT' || method() === 'PATCH') {
+        require_role(['Admin']);
+        $in = body();
+        $area  = trim($in['area'] ?? '');
+        $role  = $in['role'] ?? '';
+        $allow = !empty($in['allow']) ? 1 : 0;
+
+        $colMap = [
+            'Admin'   => 'admin_allow',
+            'Manager' => 'manager_allow',
+            'Editor'  => 'editor_allow',
+            'Viewer'  => 'viewer_allow',
+        ];
+        if ($area === '' || !isset($colMap[$role])) {
+            fail('Valid area and role are required', 422);
+        }
+        $col = $colMap[$role];
+
+        $stmt = db()->prepare("UPDATE role_permissions SET `$col` = ? WHERE area = ?");
+        $stmt->execute([$allow, $area]);
+        if ($stmt->rowCount() === 0) {
+            // area didn't exist — verify it's actually there before erroring
+            $chk = db()->prepare('SELECT id FROM role_permissions WHERE area = ?');
+            $chk->execute([$area]);
+            if (!$chk->fetch()) fail('Unknown permission area', 404);
+        }
+        crud_audit('permission', $claims, 'Updated', "$area · $role", 'update');
+        respond(role_matrix());
+    }
+    fail('Method not allowed', 405);
+}
 
 /** Build the roleMatrix shape the frontend's matrix table expects. */
 function role_matrix(): array

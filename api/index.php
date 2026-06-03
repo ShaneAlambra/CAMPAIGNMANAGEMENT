@@ -48,6 +48,8 @@ $ROUTES = [
     'notifications' => 'notifications.php',
     'audit'         => 'audit.php',
     'users'         => 'users.php',
+    'settings'      => 'settings.php',
+    'analytics'     => 'analytics.php',
 ];
 
 if ($resource === '' ) {
