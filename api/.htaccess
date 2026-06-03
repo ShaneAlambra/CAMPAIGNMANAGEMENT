@@ -1,0 +1,11 @@
+# Ensure the Authorization header reaches PHP (XAMPP/Apache strips it otherwise).
+RewriteEngine On
+RewriteCond %{HTTP:Authorization} ^(.+)$
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+# Friendly routing:  /api/campaigns  ->  /api/index.php  (router)
+# Falls back only when the requested file/dir doesn't exist,
+# so direct .php endpoint files still work too.
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php [QSA,L]

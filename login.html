@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sign in · Cadence</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="css/auth.css" rel="stylesheet">
+  <script src="js/api.js"></script>
+</head>
+<body>
+  <!-- ===================== BRAND PANEL ===================== -->
+  <section class="auth-brand">
+    <div class="glow a"></div>
+    <div class="glow b"></div>
+    <div class="brand-top"><span class="logo-mark"><i class="bi bi-broadcast-pin"></i></span> Cadence</div>
+
+    <div class="pitch">
+      <h2>Run every marketing campaign from one place.</h2>
+      <p>Plan campaigns, score leads, track budgets and ship approvals — all in a single, fast workspace built for marketing teams.</p>
+
+      <div class="brand-mock">
+        <div class="bm-row">
+          <span class="bm-dot" style="background:rgba(79,70,229,.22);color:#c7c2ff"><i class="bi bi-megaphone-fill"></i></span>
+          <span><span class="bm-t">Summer Launch 2026</span><br><span class="bm-s">Active · Email · 1,240 leads</span></span>
+          <span class="bm-pill" style="background:rgba(34,197,94,.18);color:#7be0a0">3.1× ROI</span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-dot" style="background:rgba(14,165,233,.22);color:#9bd7f5"><i class="bi bi-person-plus-fill"></i></span>
+          <span><span class="bm-t">Sam Okafor · Trailhead Inc</span><br><span class="bm-s">New qualified lead · score 90</span></span>
+          <span class="bm-pill" style="background:rgba(124,58,237,.20);color:#cdb4fb">Hot</span>
+        </div>
+        <div class="bm-row">
+          <span class="bm-dot" style="background:rgba(245,158,11,.20);color:#fbd38d"><i class="bi bi-check2-square"></i></span>
+          <span><span class="bm-t">APAC creative approval</span><br><span class="bm-s">Pending · Finance review</span></span>
+          <span class="bm-pill" style="background:rgba(245,158,11,.18);color:#fbd38d">2 / 3</span>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="s"><b>48</b><span>active campaigns</span></div>
+        <div class="s"><b>$1.84M</b><span>pipeline tracked</span></div>
+        <div class="s"><b>3.4×</b><span>blended ROAS</span></div>
+      </div>
+    </div>
+
+    <div class="auth-foot">© 2026 Cadence · Acme Marketing workspace</div>
+  </section>
+
+  <!-- ===================== FORM PANEL ===================== -->
+  <section class="auth-form-wrap">
+    <div class="auth-card">
+      <div class="mini-brand"><span class="logo-mark"><i class="bi bi-broadcast-pin"></i></span> Cadence</div>
+      <h1>Welcome back</h1>
+      <p class="lede">Sign in to your Acme Marketing workspace.</p>
+
+      <div id="login-error" style="display:none;background:#fef2f2;color:#b91c1c;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px"></div>
+
+      <form id="login-form" novalidate>
+        <div class="field">
+          <label for="email">Work email</label>
+          <div class="inp">
+            <i class="bi bi-envelope"></i>
+            <input id="email" type="email" placeholder="you@acme.com" value="maya.chen@acme.com" autocomplete="username">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="password">Password</label>
+          <div class="inp">
+            <i class="bi bi-lock"></i>
+            <input id="password" type="password" placeholder="••••••••" value="campaign2026" autocomplete="current-password">
+            <button type="button" class="toggle-eye" id="eye" aria-label="Show password"><i class="bi bi-eye"></i></button>
+          </div>
+        </div>
+
+        <div class="row-between">
+          <label class="check"><input type="checkbox" checked> Remember me</label>
+          <a class="link" href="forgot-password.html">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn-primary-full"><i class="bi bi-box-arrow-in-right"></i> Sign in</button>
+
+        <div class="divider">or continue with</div>
+        <button type="button" class="btn-ghost-full" onclick="alert('SSO is not configured in this demo. Please sign in with your email and password.')">
+          <i class="bi bi-shield-lock"></i> Single sign-on (SSO)
+        </button>
+
+        <div class="auth-alt">Don’t have an account? <a class="link" href="#" onclick="return false">Contact your admin</a></div>
+      </form>
+    </div>
+  </section>
+
+  <script>
+    const pw = document.getElementById("password");
+    const eye = document.getElementById("eye");
+    eye.addEventListener("click", () => {
+      const show = pw.type === "password";
+      pw.type = show ? "text" : "password";
+      eye.innerHTML = show ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
+    });
+    // If already logged in, skip straight to the app.
+    if (API.auth.isLoggedIn()) window.location.href = "Campaign Manager.html";
+
+    const errBox = document.getElementById("login-error");
+    function showError(msg) {
+      errBox.textContent = msg;
+      errBox.style.display = "block";
+    }
+
+    document.getElementById("login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errBox.style.display = "none";
+      const btn = e.target.querySelector(".btn-primary-full");
+      const original = btn.innerHTML;
+      btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Signing in…';
+      btn.style.pointerEvents = "none";
+
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value;
+
+      try {
+        await API.login(email, password);
+        window.location.href = "Campaign Manager.html";
+      } catch (err) {
+        showError(err.message || "Sign in failed. Please try again.");
+        btn.innerHTML = original;
+        btn.style.pointerEvents = "auto";
+      }
+    });
+  </script>
+</body>
+</html>
